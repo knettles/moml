@@ -174,5 +174,5 @@ Due to memory limitations, this code will not run with this document corpus on m
 
 columna <- read_file("C:/Users/Kim/Documents/Text Analysis for Historians/medical_documents/19007744200.txt")
 columnb <- read_file("C:/Users/Kim/Documents/Text Analysis for Historians/medical_documents/20001901700.txt")                 
-align_local(columna, columnb)
+#align_local(columna, columnb)
 ```
