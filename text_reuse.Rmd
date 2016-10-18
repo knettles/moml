@@ -89,10 +89,27 @@ corpus[c("19004036901", "19004041101")]
 wordcount(corpus)
 ```
 Pairwise comparisons:
-Now that I've worked through the first vignette, I want to do a quick exercise in pariwise comparisons.  The document I chose for the first vigneette example (19004036901) is the 1850 edition of Elements of Medical Jurisprudence.  I want to compare it to the 1823 edition to see how similar they are.
+Now that I've worked through the first vignette, I want to do a quick exercise in pariwise comparisons.  
+The first function compares a single pair. The document I chose for the first vigneette example (19004036901) is the 1850 edition of Elements of Medical Jurisprudence.  I want to compare it to the 1863 edition (19004039001) to see how similar they are.
+
 ```{r}
-wordcount(corpus)
+jaccard_similarity(corpus[["19004036901"]], 
+                   corpus[["19004039001"]])
 ```
+The second function compares the entire corpus:
+```{r}
+comparisons <- pairwise_compare(corpus, jaccard_similarity, progress = FALSE)
+comparisons[1:4, 1:4]
+```
+I can convert the results to a dataframe, with scores above a set threshold:
+```{r}
+candidates <- pairwise_candidates(comparisons)
+candidates[candidates$score > 0.1, ]
+```
+
+
+
+
 Minhash and locality-sensitive hashing
 
 Set the seed and convert a set of tokens into randomly selected and hashed tokens:
