@@ -1,0 +1,161 @@
+---
+title: "TextReuse Worksheet"
+output:
+  html_document: default
+  html_notebook: default
+  pdf_document: default
+---
+
+This document works through the concepts presented in Vignette 1 of the package and then moves on to some comparisons.
+
+Part One:  working the vignette
+
+```{r}
+#install.packages("textreuse")
+
+#vignette("textreuse-introduction", package = "textreuse")
+
+```
+
+```{r}
+
+library(textreuse)
+library(readr)
+files <- list.files("C:/Users/Kim/Documents/Text Analysis for Historians/medical_documents", 
+                    pattern = "*.txt",
+                    full.names = TRUE)
+
+saveRDS(files, "med_files.RDS")
+files <- readRDS("med_files.rds")
+```
+
+
+```{r}
+
+file <- read_file("C:/Users/Kim/Documents/Text Analysis for Historians/medical_documents/19004036901.txt")
+
+list <- readRDS("us_items.rds")
+doc <- TextReuseTextDocument(text = file, meta = list(id = "19004036901"),
+                             tokenizer = tokenize_ngrams, n = 5,
+                             keep_tokens = TRUE)
+
+doc
+```
+
+
+```{r}
+meta(doc)
+```
+
+```{r}
+meta(doc, "id")
+```
+```{r}
+meta(doc, "date") <- 1865
+head(tokens(doc))
+```
+```{r}
+head(hashes(doc))
+```
+```{r}
+wordcount(doc)
+```
+Textreuse Corpus
+
+
+```{r}
+
+dir <- file.path("C:/Users/Kim/Documents/Text Analysis for Historians/medical_documents")
+corpus <- TextReuseCorpus(dir = dir, tokenizer = tokenize_ngrams, n = 5,
+                          progress = FALSE)
+
+
+
+corpus
+```
+
+```{r}
+names(corpus)
+```
+
+```{r}
+corpus[["19004036901"]]
+```
+
+```{r}
+corpus[c("19004036901", "19004041101")]
+```
+```{r}
+wordcount(corpus)
+```
+Pairwise comparisons:
+Now that I've worked through the first vignette, I want to do a quick exercise in pariwise comparisons.  The document I chose for the first vigneette example (19004036901) is the 1850 edition of Elements of Medical Jurisprudence.  I want to compare it to the 1823 edition to see how similar they are.
+```{r}
+wordcount(corpus)
+```
+Minhash and locality-sensitive hashing
+
+Set the seed and convert a set of tokens into randomly selected and hashed tokens:
+```{r}
+minhash <- minhash_generator(n = 240, seed = 3552)
+#proving it works:
+head(minhash(c("turn tokens into", "tokens into hashes", "into hashes fast")))
+```
+Using this function, I can compute the hashes for my selected corpus.
+```{r}
+corpus <- TextReuseCorpus(dir = dir, tokenizer = tokenize_ngrams, n = 5,
+                          minhash_func = minhash, keep_tokens = TRUE,
+                          progress = FALSE)
+```
+Verifying that they were created:
+```{r}
+head(minhashes(corpus[[1]]))
+
+length(minhashes(corpus[[1]]))
+```
+The corpus of documents is now represented by a "map" of n=240 randomly selected and hased shingles.
+
+Using 240 minhashes and 80 bands (sets of rows, must be divisible into minhashes).....
+```{r}
+lsh_threshold(h = 240, b = 80)
+```
+.....means that we will get an actual Jaccard similarity of above 0.232
+We can also estimate the probability that a pair of documents with Jaccard similarity "s" will be marked as potential matches.  **Note: this is an external calculation, not dependent upon an individual corpus.
+```{r}
+lsh_probability(h = 240, b = 80, s = 0.25)
+```
+```{r}
+lsh_probability(h = 240, b = 80, s = 0.75)
+```
+
+
+Next, we use this lsh() function to calculate locality-sensitive hashes for our documents:
+```{r}
+buckets <- lsh(corpus, bands = 80, progress = FALSE)
+buckets
+```
+Each document now has a bucket, or signature. Now, we can extract potential matches: In this case, I am going back to the 1850 Elements of Medical Jurisprudence document (19004036901):
+```{r}
+baxter_matches <- lsh_query(buckets, "19004036901")
+baxter_matches
+```
+This function returns all potential pairs of matches within the corpus, with a Jaccard similiarity score above 0.232.
+
+```{r}
+candidates <- lsh_candidates(buckets)
+candidates
+```
+The next step is to calculate the individua similarity scores:
+```{r}
+lsh_compare(candidates, corpus, jaccard_similarity, progress = FALSE)
+```
+
+Lastly, text alignment compares documents and extracts the part of text that was borrowed.  
+Due to memory limitations, this code will not run with this document corpus on my laptop. Comparison of a small set of pages would likely be successful. 
+
+```{r}
+
+columna <- read_file("C:/Users/Kim/Documents/Text Analysis for Historians/medical_documents/19007744200.txt")
+columnb <- read_file("C:/Users/Kim/Documents/Text Analysis for Historians/medical_documents/20001901700.txt")                 
+align_local(columna, columnb)
+```
