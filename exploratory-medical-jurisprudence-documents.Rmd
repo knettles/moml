@@ -1,10 +1,11 @@
 ---
-title: "Exploratory Look at Medical Jurisprudence Documents"
+title: "Proposal for Medical Jurisprudence Documents"
 output: html_notebook
 ---
+Historically, Public Health officials are often charged as overtly, or implicitly, racializing health care and policy decisions. Molina's Fit to Be Citizens, for example, documents instances where sanitation laws were written specifically to put Chinese laundries out of business. Contemporary medical understanding of "filth" as a disease vector translated into policies and strategies to "clean out" sources of filth which are commonly associated with poverty-stricken minority neighborhoods. 
+The data, however, are largely anecdotal and extracted from archives only with great difficulty. I would like to use the medical jurisprudence documents in the MOML to demonstrate how such a corpus may be used to identify and trace racialized public health policy. 
 
-Vectorize a subcorpus.
-```{r}
+```{r, echo=FALSE}
 library(tokenizers)
 library(text2vec)
 library(readr)
@@ -26,8 +27,8 @@ us_items <- readRDS("us_items.rds")
 #N_WORKERS <- 8
 #registerDoParallel(N_WORKERS)
 ```
-Now, read in the files, tokenize, create a vocabulary and prune it, and then vectorize it.  Lastly, create a document term matrix (dtm.)
-```{r}
+
+```{r, echo=FALSE}
 files <- list.files("C:/Users/Kim/Documents/Text Analysis for Historians/medical_documents", 
                     pattern = "*.txt",
                     full.names = TRUE)
@@ -49,27 +50,26 @@ jobs <- files %>%
 vocab <- create_vocabulary(jobs)
 pruned <- prune_vocabulary(vocab, term_count_min = 10,
                            term_count_max = 50e3)
-message("Keeping ", round(nrow(pruned$vocab) / nrow(vocab$vocab), 3) * 100,
-        "% of the vocabulary.")
+#message("Keeping ", round(nrow(pruned$vocab) / nrow(vocab$vocab), 3) * 100,
+ #       "% of the vocabulary.")
 vectorizer <- vocab_vectorizer(pruned)
 
 dtm <- create_dtm(jobs, vectorizer)
 ```
-Count the vocabulary.
-```{r}
+
+```{r, echo=FALSE}
 
 rowSums(dtm) %>% tidy() %>% View
 
-dtm[ , c("medical", "insanity", "child")] %>% tidy() %>% View
+dtm[ , c("black", "blacks", "negro", "negroes", "colored", "mexican",  "chinese", "japanese", "asiatic", "italian")] %>% tidy() %>% View
 
 
 # %>% 
 #   tidy() %>% 
 #   arrange(desc(x))
 ```
-Make a chart of certain words.
 
-```{r}
+```{r, echo=FALSE}
 
 dtm_to_df <- function(x, words) {
   require(dplyr)
@@ -86,13 +86,17 @@ dtm_to_df <- function(x, words) {
            page_id = ids[ , 2, drop = TRUE]) %>% 
     select(document_id, page_id, everything())
 }
-
-words_of_interest <- c("man", "woman", "male", "female", "child")
+```
+I have created two charts to help define racial and public health topics that appear in the corpus.  The racial chart includes terms that were used to describe African Americans, Asians (and prominent Asian nationalities of the time), Italians (who were not considered "white" until after World War II), and Native Americans.  A search for "yellow" (as in "yellow race") was not included, because it may also be associated with Yellow Fever. "Black" is also an inexact search term, but is not as closely associated with a named disease.
+```{r}
+words_of_interest <- c("african", "black", "blacks", "negro", "negroes", "colored", "mexican",  "chinese", "japanese", "asiatic",  "italian", "indian")
 
 counts <- dtm_to_df(dtm, words_of_interest) %>% 
   gather(word, count, -document_id, -page_id) %>% 
   filter(count > 0)
-
+```
+The resulting chart is a quick (and dirty) look at the use of various racial terms over time. The results suggest that race and ethnic categorizations were used frequently enough to justify further pursuit of the question.
+```{r, echo=FALSE}
 item_years <- us_items %>% 
   select(document_id, publication_date)
 #and then convert those dates to just the year
@@ -108,33 +112,58 @@ counts %>%
   summarize(count = sum(count)) %>% 
   ggplot(aes(x = publication_date, y = count, color = word)) +
   geom_point() +
-  geom_smooth(span = 0.1, se = FALSE) +
-  labs(title = "Word use over time in medical jurisprudence treatises")# + 
-  xlim
+  geom_smooth(span = 0.5, se = FALSE) +
+  labs(title = "Racial term use over time in medical jurisprudence treatises") + 
+  ylim(0, 100)
+ggsave("public_race.jpg")
 ```
-Distance functions
+The public health chart of words includes terms for issues that may have fallen within the realm of public health policy and law. The words "sanitation", "filth", and "vaccine" are associated with emerging medical knowledge about the source of disease and eradication efforts that marked public health history during the Progressive Era. The diseases listed are communicable diseases against which public health resources were marshaled. Abortion was included because of the rise of eugenics as a public health topic.
 ```{r}
-distances <- dist2(dtm[1, , drop = FALSE], dtm[1:1e2, ])
-distances2 <- distances[1, ] %>% sort()
-head(distances2)
-tail(distances2)
-range(distances2)
 
-similarities <- wordVectors::cosineSimilarity(dtm[1:123, , drop = FALSE], 
-                                              dtm[1:123, , drop = FALSE])
-similarities 
+words_of_interest_2 <- c( "sanitation", "vaccination", "vaccine", "abortion",  "epidemic", "influenza", "filth", "typhoid", "smallpox", "tuberculosis",  "syphilis", "gonorrhea", "gonorrhoea")
+
+counts_2 <- dtm_to_df(dtm, words_of_interest_2) %>% 
+  gather(word, count, -document_id, -page_id) %>% 
+  filter(count > 0)
 ```
-TF-IDF
-```{r}
-model_tfidf <-  TfIdf$new()
-model_tfidf$fit(dtm)
-dtm_tfidf <- model_tfidf$transform(dtm)
 
-dtm_1 = model_tfidf$transform(dtm)
-dtm_2 = model_tfidf$fit_transform(dtm)
-identical(dtm_1, dtm_2)
-
-#this has normalized individual words so that we can see which words actualy have more significance (medical vs poison)  Go reread leskovic to see the intuition behind
-
-rowSums(dtm_1) %>% tidy() %>% View
+A graph of the word chart has some unexpected results. Of all of the subjects, which include serious communicable diseases with high mortatlity rates, the subject of abortion clearly dominates the jurisprudence literature, both vertically and horizontally (across time.)  A third chart displays each subject individually, but the dominance of abortion remains clear.
+```{r, echo=FALSE}
+counts_2 %>% 
+  group_by(document_id, word) %>% 
+  summarize(count = sum(count)) %>% 
+  left_join(item_years, by = "document_id") %>% 
+  group_by(publication_date, word) %>% 
+  summarize(count = sum(count)) %>% 
+  ggplot(aes(x = publication_date, y = count, color = word)) +
+  geom_point() +
+  geom_smooth(span = 0.4, se = FALSE) +
+  labs(title = "Public health subjects in medical jurisprudence treatises")# + 
+  ylim(0, 100)
+  
+  ggsave("public_health.jpg")
+  
+  counts_2 %>% 
+  group_by(document_id, word) %>% 
+  summarize(count = sum(count)) %>% 
+  left_join(item_years, by = "document_id") %>% 
+  group_by(publication_date, word) %>% 
+  summarize(count = sum(count)) %>% 
+  ggplot(aes(x = publication_date, y = count, color = word)) +
+  geom_point() +
+  geom_smooth(span = 0.5, se = FALSE) +
+  facet_wrap( ~ word, ncol=3)+
+  labs(title = "Public health subjects in medical jurisprudence treatises") + 
+  ylim(0, 300)
+  
+  ggsave("public_health_faceted.jpg")
 ```
+These preliminary examinations of the medical jurisprudence corpus raise a number of questions:
+1. Which documents engage in racial discussion the most? What relationship exists between those documents by racial/ethnic category, i.e., are they the same documents, are they topical or generalist documents?
+2. In what contexts is medical jurisprudence applied to specified racial groups? Do they evolve over time? Are there differences between groups?
+3. Is abortion a racial issue? If so, is that true across time?
+4. Is poverty a modifier for how these groups are viewed or treated by the law?
+5. The relatively low number of documents referring to public health topics suggest that they were not controversial (in a legal sense.)  Is it possible to establish the context within which those discussions do appear?
+
+For the final project, I propose to use the analysis for ONE (or two) of these questions to develop a rationale for effectively narrowing down a set of documents, establishing candidate sets on the basis of a set of defined criteria, and using various techniques to shape and visualize an answer.
+
