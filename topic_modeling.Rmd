@@ -1,0 +1,239 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+Feeling my way through this....
+The first step is to identify a subset of texts to work with. In my proposal (cleverly named proposal-medical-jurisprudence.rmd), I created two data frames, one for racial groups (racial_counts.rds) and one for public health topics (public_health.rds) If I filter the documents by the intersection of a selected racial group and a public health topic, the result should be an appropriately sized set of documents.
+
+```{r}
+library(textmineR)
+library(dplyr)
+library(lubridate)
+library(stringr)
+library(tokenizers)
+library(text2vec)
+library(readr)
+library(Matrix)
+library(broom)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+
+
+racial_counts <- readRDS("racial_counts.rds")
+public_health_counts <- readRDS("public_health_counts.rds")
+us_items <- readRDS("us_items.rds")
+
+item_years <- us_items %>% 
+  select(document_id, publication_date)
+#and then convert those dates to just the year
+item_years$publication_date<-year(as.Date(item_years$publication_date, origin = '1900-1-1'))
+item_years$document_id<-as.character(item_years$document_id)
+
+ subset_corpus <- racial_counts %>% 
+   left_join(public_health_counts, by = "document_id") %>%
+  left_join(item_years, by = "document_id")%>%
+   filter(str_detect(word.y, "vaccin"))
+ 
+vaccination_docs <-subset_corpus %>%
+  select(document_id, publication_date) %>%
+  distinct(document_id)
+ 
+
+ test_subset <-public_health_counts %>%
+   left_join(item_years, by = "document_id")%>%
+   filter(str_detect(word, "vaccin"))
+ 
+ test_docs <- test_subset %>%
+  select(document_id, publication_date) %>%
+  distinct(document_id)
+ 
+us_items$document_id<-as.character(us_items$document_id)
+ 
+ tm_docs <- vaccination_docs %>%
+  left_join(us_items, by = "document_id")
+ 
+```
+I now have a list of documents where there are references to both vaccination and racial groups.  However, I ran a test subset to see if racial categories made a difference at the document level; they did not. 
+
+
+
+```{r}
+#stopping this section because the vocab is running forever without showing progress.  Trying with a single document to see if I can just get the code to work.
+#files <- list.files("C:/Users/Kim/Documents/Text Analysis for #Historians/medical-jurisprudence/medical-jurisprudence", 
+#                    files[files %in% vaccination_docs],
+ #                   full.names = TRUE)
+
+
+
+#Selecting the 1926 text
+files <- list.files("C:/Users/Kim/Documents/Text Analysis for Historians/medical-jurisprudence/medical-jurisprudence", 
+                    pattern = "20004268501",
+                   full.names = TRUE)
+
+
+
+```
+My attempt to model the vaccination subset didn't go well.  The processing seems to hang up, even though I don't exceed memory.  I'll make an attempt to run it overnight, but in the meantime I'm going to take a single text to see what happens with the package.
+
+To do this, I chose the latest text in the subset, dated 1926. I created the DTM using the code from previous classwork. 
+```{r}
+
+
+reader <- function(f) {
+  require(stringr)
+  n <- basename(f) %>% str_replace("\\.txt", "")
+  doc <- readr::read_file(f)
+  names(doc) <- n
+  doc
+}
+
+
+jobs <- files %>% 
+  lapply(ifiles, reader = reader) %>% 
+  lapply(itoken, chunks_number = 1, tokenizer = tokenizers::tokenize_words,
+         progressbar = FALSE)
+
+vocab <- create_vocabulary(jobs)
+pruned <- prune_vocabulary(vocab, term_count_min = 10,
+                           term_count_max = 3000) #orig term_count_max = 50e3
+#message("Keeping ", round(nrow(pruned$vocab) / nrow(vocab$vocab), 3) * 100,
+ #       "% of the vocabulary.")
+vectorizer <- vocab_vectorizer(pruned)
+
+dtm <- create_dtm(jobs, vectorizer)
+```
+LDA
+```{r}
+#This is the example from the vignette.  I'm uncertain how to do this.
+# Load some data into the workspace 
+#data(files)
+
+# Create a document term matrix
+#dtm1 <- CreateDtm(files, 
+ #                doc_names = files, 
+   #             ngram_window = c(1, 2))
+```
+
+```{r}
+dim(dtm)
+
+# explore basic frequencies & curate vocabulary
+tf <- TermDocFreq(dtm = dtm)
+
+# Eliminate words appearing less than 2 times or in more than half of the
+# documents
+vocabulary <- tf$term[ tf$term_freq > 1 & tf$doc_freq < nrow(dtm) / 2 ]
+
+dtm <- dtm[ , vocabulary]
+
+dim(dtm)
+
+# fit some LDA models and select the best number of topics
+k_list <- seq(5, 50, by = 5)
+
+model_dir <- paste0("models_", digest::digest(vocabulary, algo = "sha1"))
+
+if (!dir.exists(model_dir)) dir.create(model_dir)
+
+model_list <- TmParallelApply(X = k_list, FUN = function(k){
+  filename = file.path(model_dir, paste0(k, "_topics.rda"))
+
+  if (!file.exists(filename)) {
+    m <- FitLdaModel(dtm = dtm, k = k, iterations = 500)
+    m$k <- k
+    m$coherence <- CalcProbCoherence(phi = m$phi, dtm = dtm, M = 5)
+    save(m, file = filename)
+  } else {
+    load(filename)
+  }
+
+  m
+}, export=c("dtm", "model_dir")) # export only needed for Windows machines
+
+coherence_mat <- data.frame(k = sapply(model_list, function(x) nrow(x$phi)), 
+                            coherence = sapply(model_list, function(x) mean(x$coherence)), 
+                            stringsAsFactors = FALSE)
+
+plot(coherence_mat, type = "o")
+
+# select k based on maximum average coherence
+model <- model_list[ which.max(coherence_mat$coherence) ][[ 1 ]]
+
+
+names(model) # phi is P(words | topics), theta is P(topics | documents)
+
+# Calculate some summary statistics etc. Which is the real value-add of textmineR
+
+# Get the R-squared of this model
+model$r2 <- CalcTopicModelR2(dtm = dtm, phi = model$phi, theta = model$theta)
+
+model$r2
+
+# top 5 terms of the model according to phi & phi-prime
+model$top_terms <- GetTopTerms(phi = model$phi, M = 5)
+
+# phi-prime, P(topic | words) for classifying new documents
+model$phi_prime <- CalcPhiPrime(phi = model$phi, theta = model$theta, p_docs = rowSums(dtm))
+
+model$top_terms_prime <- GetTopTerms(phi = model$phi_prime, M = 5)
+
+# give a hard in/out assignment of topics in documents
+model$assignments <- model$theta
+
+model$assignments[ model$assignments < 0.05 ] <- 0
+
+model$assignments <- model$assignments / rowSums(model$assignments)
+
+model$assignments[ is.na(model$assignments) ] <- 0
+
+
+# Get some topic labels using n-grams from the DTM
+model$labels <- LabelTopics(assignments = model$assignments, 
+                            dtm = dtm,
+                            M = 2)
+
+# Probabilistic coherence: measures statistical support for a topic
+model$coherence <- CalcProbCoherence(phi = model$phi, dtm = dtm, M = 5)
+
+
+# Number of documents in which each topic appears
+model$num_docs <- colSums(model$assignments > 0)
+
+# cluster topics together in a dendrogram
+model$topic_linguistic_dist <- HellDist(model$phi)
+
+model$hclust <- hclust(as.dist(model$topic_linguistic_dist), "ward.D")
+
+model$hclust$clustering <- cutree(model$hclust, k = 10)
+
+model$hclust$labels <- paste(model$hclust$labels, model$labels[ , 1])
+
+plot(model$hclust)
+rect.hclust(model$hclust, k = length(unique(model$hclust$clustering)))
+
+# make a summary table
+model$summary <- data.frame(topic     = rownames(model$phi),
+                            cluster   = model$hclust$clustering,
+                            model$labels,
+                            coherence = model$coherence,
+                            num_docs  = model$num_docs,
+                            top_terms = apply(model$top_terms, 2, function(x){
+                              paste(x, collapse = ", ")
+                            }),
+                            top_terms_prime = apply(model$top_terms_prime, 2, function(x){
+                              paste(x, collapse = ", ")
+                            }),
+                            stringsAsFactors = FALSE)
+
+View(model$summary[ order(model$hclust$clustering) , ])
+
+```
+
+```{r}
+
+```
+
+
+
