@@ -2,7 +2,9 @@
 title: "WordVector Exploratory for Medical Jurisprudence"
 author: "Nettles"
 date: "November 13, 2016"
-output: html_document
+output:
+  html_document: default
+  pdf_document: default
 ---
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -103,7 +105,7 @@ model %>% nearest_to(model[[c("mexican", "mexicans", "peruvians", "sardine", "ma
 races_hispanic = nearest_to(model,model[[c("mexican", "mexicans", "peruvians", "sardine", "madrid")]],300)
 ```
 
-Now that I have a series of racial vector sets, I want to try some visualizations.  I'll start with the top 300 words in relation to their similarity to African Americans and Asians.
+Now that I have a series of racial vector sets, I want to try some visualizations.  I'll start with the top 300 words in relation to their similarity to African Americans and Asians.  Notice the term "charlevoix" off to the right -- we'll come back to that later.
 ```{r, echo=FALSE}
 races = model[rownames(model) %in% some_races [1:300], ]
 
@@ -117,6 +119,11 @@ abline(a=0, b=1)
 This is a comparison of the four racial groups in terms of their nearness to one another:
 ```{r}
 all_races = data.frame(word = rownames(races))
+
+#names(races_afram)
+
+#This stilll isn't working -- it is calling the names, but not the values, resulting in a blank graph. Leaving this alone for now.
+#aa_asian_vector = model[[names(races_afram)]] - model[[names(races_asian)]]
 
 aa_asian_vector = model[[c("negro" , "mulatto", "mulattoes" , "negress" , "creole", "african" , "mulattoes" , "spades" , "albino" ,  "mongolians")]] - model[[c( "asiatic" , "chinese", "japanese", "filipino" , "hindoos" , "asia" , "persia" , "islanders" , "sandwich" , "tahiti", "islands", "tribes","indians", "aboriginal")]]
 
@@ -137,7 +144,7 @@ Looking over the races vector:
 plot(races, perplexity=50)
 ```
 ```{r}
-nearest_to(races, races[["negro"]]) - nearest_to(races, races[["asiatic"]])
+
 ```
 "charlevoix" is a term that has come up in previous modeling.  I found a reference for a Jesuit priest, Father Pierre François Xavier de Charlevoix, who is considered the first historian of New France. I also found his observations quoted in a text discussing the negro race.
 
@@ -156,17 +163,7 @@ Subtracting both Galton and Charveloix associated terms from the negro vector:
 ```{r}
 races %>% nearest_to(races[["negro"]] - races[["charlevoix"]] - races[["galton"]])
 ```
-This is a very rough cut, but it does appear nearly all reference in the texts to the word "negro" is associated with discussion of eugenics or the observatios of an 18th century missionary.
+I *think* this means that nearly all reference in the texts to the word "negro" is associated with discussion of eugenics or the observations of an 18th century missionary.
 
+Lookin forward, I need to make sure I've got a good set of racial terms and then make sure they're all included in the all_races vector.  There are a lot of different directions I could take this; for now, the plan is test the finished model against other corpus subsets to see if it works across subject areas.  Another area of investigation is to create public health vectors and assess their relationship with race vectors.
 
-
-Further research:
-1) refine all_races to include terms from all of the subsets
-2) continue to improve the racial subgroups
-3) create subsets along religious and nationality lines
-4) create gender sets
-5) create chronological sets (pre- and post- Civil War and early 20th century are some obvious breaks)
-5) create public health sets (disease, disability, abortion, quarantine, vaccination) 
-6) compare public health sets to race/gender/religion
-
-The intent is to look for evidence of language of race/gender/religion associated with public health concerns.
