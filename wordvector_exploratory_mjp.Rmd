@@ -1,0 +1,147 @@
+---
+title: "WordVector Exploratory for Medical Jurisprudence"
+author: "Nettles"
+date: "November 13, 2016"
+output: html_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+This notebook explores the use of wordVectors for application on the medical jurisprudence files in the MOML database. I am interested the use of racial terminology in these texts and evidence of their distinction in relation to discussions of disease.  
+As an initial step, I am going to build a set of racial terms and then look at the similiarities and differences between them.  
+
+```{r libraries, include=FALSE}
+#My base library
+library(textmineR)
+library(dplyr)
+library(lubridate)
+library(stringr)
+library(tokenizers)
+library(text2vec)
+library(readr)
+library(Matrix)
+library(broom)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(wordVectors)
+library(tsne)
+```
+
+```{r read in model, include=FALSE}
+model = read.vectors("mjp_doc_vectors.bin")
+```
+The lexicon of terms comes from the documents themselves.  By iteratively modeling terms "nearest_to" an initial set of labels, I can build a list of words that are used to describe various races. I found that model quickly begins to include religion and geographic locations. For example, "Jew" refers to both race and religion; I inlcuded it in the list because the Jewish are often treated as a race through history. More generic terms, such as "ethnic" are included because they typically refer to people viewed as "other."
+
+```{r modeling an encompassing set of racial terms, include=FALSE }
+#10
+model %>% nearest_to(model[[c("race", "caucasian","races","esquimaux" , "aboriginal" ,"chaldaic" , "ethnic" , "european" , "jews","eskimo" , "australoid", "australians","africans","mongolians","chaco" ,"japanese" , "negroid" , "jews","mohammedans", "asiatics" , "tribes" , "europeans", "hottentots", "mexican", "hebrew" , "malays", "islanders", "chinese", "hindoos","germanic", "greeks", "italians", "asia")]],300) %>% names
+```
+Upon completion of my modeling, I have a list of racial terms and a set of related terms  for the entire medical jurisprudence corpus:
+```{r}
+some_races = model %>%
+  nearest_to(model[[c( "race", "caucasian","races","esquimaux" , "aboriginal" ,"chaldaic" , "ethnic" , "european" , "jews","eskimo" , "australoid", "australians","africans","mongolians","chaco" ,"japanese" , "negroid" , "jews","mohammedans", "asiatics" , "tribes" , "europeans", "hottentots", "mexican", "hebrew" , "malays", "islanders", "chinese", "hindoos","germanic", "greeks", "italians", "asia")]],300) %>% names
+#sample(some_races, 30)
+```
+Next, I want to create models of terms for specific racial groups so that I can compare them against each other and the overall "some_races" model.
+
+My first race-specific model is Asian.  An initial plot, beginning with the single term "asiatic" produced many disease-related terms.
+```{r, include=FALSE}
+model %>% nearest_to(model[[c("asiatic")]],300) %>% names
+```
+It's encouraging that there are lots of diseases associated with discusssion of "asiatics", but I'm looking for racial terms. It's possible that the term is being used to describe diseases (e.g., asiatic flu.)  I seeded the model with a couple of specific population groups that I know were present in the US during this period, the Chinese, Japanses, and Filipino, which improved my results.
+```{r, include=FALSE}
+model %>% nearest_to(model[[c("asiatic" , "chinese", "japanese", "filipino")]],300) %>% names
+```
+.
+```{r, include=FALSE}
+#10
+model %>% nearest_to(model[[c("asiatic" , "chinese", "japanese", "filipino" , "hindoos" , "asia" , "persia" , "islanders" , "sandwich" , "tahiti", "islands" , "savages" , "tribes" ,  "indians" )]],300) %>% names
+```
+Here's the final Asian list:
+```{r}
+races_asian = nearest_to(model,model[[c( "asiatic" , "chinese", "japanese", "filipino" , "hindoos" , "asia" , "persia" , "islanders" , "sandwich" , "tahiti", "islands", "tribes","indians", "aboriginal")]],300)
+```
+A plot of the results looks promising.
+```{r , echo=FALSE}
+plot(filter_to_rownames(model,names(races_asian)))
+```
+The dendogram suggests no significant subsets.
+```{r}
+race_asian_distances = cosineDist(races_asian,races_asian) %>% as.dist
+plot(as.dendrogram(hclust(race_asian_distances)),horiz=F,cex=1,main="Cluster dendrogram of the fifty words closest to an Asian race vector\nin medical jurisprudence texts from the MOML")
+```
+Now I'm going to work on African American terminology.
+```{r, include=FALSE}
+model %>% nearest_to(model[[c("negro" )]],300) %>% names
+```
+.
+
+```{r, include=FALSE}
+#10
+model %>% nearest_to(model[[c("negro" , "mulatto", "mulattoes" , "negress" , "creole", "african" , "mulattoes" , "spades" , "albino" ,  "mongolians")]],300) %>% names
+```
+.
+
+```{r}
+races_afram = nearest_to(model,model[[c("negro" , "mulatto", "mulattoes" , "negress" , "creole", "african" , "mulattoes" , "spades" , "albino" ,  "mongolians" )]],300)
+
+```
+Now, caucasian:
+```{r, include=FALSE}
+model %>% nearest_to(model[[c("caucasian", "aryan", "anglo", "saxon","saxons", "english")]],300) %>% names
+
+races_white = nearest_to(model,model[[c("caucasian", "aryan", "anglo", "saxon","saxons", "english")]],300)
+
+```
+Lastly, Hispanic:
+```{r, include=FALSE}
+model %>% nearest_to(model[[c("mexican", "mexicans", "peruvians", "sardine", "madrid")]],300) %>% names
+```
+
+```{r}
+races_hispanic = nearest_to(model,model[[c("mexican", "mexicans", "peruvians", "sardine", "madrid")]],300)
+```
+
+Now that I have a series of racial vector sets, I want to try some visualizations.  I'll start with the top 300 words in relation to their similarity to African Americans and Asians.
+```{r, echo=FALSE}
+races = model[rownames(model) %in% some_races [1:300], ]
+
+afram_score = races %>% cosineSimilarity(model[[c("negro", "negress")]])
+asian_score = races %>% cosineSimilarity(model[[c("asiatic")]])
+
+plot(afram_score, asian_score, type ='n', main="Top 300 words plotted by their similarity to AA\n(x axis) and Asians (y axis).")
+text(afram_score, asian_score, labels = rownames(races), cex=.7)
+abline(a=0, b=1)
+```
+This is a comparison of the four racial groups in terms of their nearness to one another:
+```{r}
+all_races = data.frame(word = rownames(races))
+
+aa_asian_vector = model[[c("negro" , "mulatto", "mulattoes" , "negress" , "creole", "african" , "mulattoes" , "spades" , "albino" ,  "mongolians")]] - model[[c( "asiatic" , "chinese", "japanese", "filipino" , "hindoos" , "asia" , "persia" , "islanders" , "sandwich" , "tahiti", "islands", "tribes","indians", "aboriginal")]]
+
+
+all_races$aa_vs_asian = cosineSimilarity(races,aa_asian_vector)
+
+white_hispanic_vector = model[[c("caucasian", "aryan", "anglo", "saxon","hispanic", "english")]] - model[[c("mexican", "mexicans", "peruvians", "sardine", "madrid")]]
+
+all_races$white_vs_hispanic = cosineSimilarity(races,white_hispanic_vector)
+
+library(ggplot2)
+ggplot(all_races,aes(x=aa_vs_asian,y=white_vs_hispanic,label=word)) + geom_text(size=2.5) +
+  scale_y_continuous("<----- Hispanic ..............  Caucasian ------>",limits=c(-.21,.2)) +
+  scale_x_continuous("<----- Asian ..............  African-American ------>",limits=c(-.30,.15))
+```
+Next steps:
+1) refine all_races to include terms from all of the subsets
+2) continue to improve the racial subgroups
+3) if time allows, create subsets along religious and nationality lines
+4) create gender sets
+4) create public health sets (disease, disability, abortion, quarantine, vaccination) 
+5) compare public health sets to race/gender/religion
+
+The intent is to look for evidence of language of race/gender/religion associated with public health concerns.
+```{r}
+
+```
+
