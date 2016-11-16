@@ -1,0 +1,132 @@
+---
+title: "WordVector Exploratory for Medical Jurisprudence"
+author: "Nettles"
+date: "November 13, 2016"
+output: html_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+This notebook explores the use of wordVectors for application on the medical jurisprudence files in the MOML database. 
+
+```{r libraries, include=FALSE}
+#My base library
+library(textmineR)
+library(dplyr)
+library(lubridate)
+library(stringr)
+library(tokenizers)
+library(text2vec)
+library(readr)
+library(Matrix)
+library(broom)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(wordVectors)
+library(tsne)
+```
+
+```{r read in model, include=FALSE}
+model = read.vectors("mjp_doc_vectors.bin")
+```
+I want to explore racial terminology used in the medical jurisprudence texts. I am going to create a set of racial terms and then build a dendogram.
+
+```{r}
+#10
+model %>% nearest_to(model[[c("race", "caucasian","races","esquimaux" , "aboriginal" ,    "chaldaic" , "ethnic" , "european" , "jews","eskimo" , "australoid", "australians","africans","mongolians","chaco" ,"japanese" , "negroid" , "jews","mohammedans", "asiatics" , "tribes" , "europeans", "hottentots", "mexican", "hebrew" , "malays", "islanders", "chinese", "hindoos", "savages" , "germanic", "greeks", "italians", "barbarians", "asia")]],50) %>% names
+```
+```{r}
+some_races = model %>%
+  nearest_to(model[[c( "race", "caucasian","races","esquimaux" , "aboriginal" ,    "chaldaic" , "ethnic" , "european" , "jews","eskimo" , "australoid", "australians","africans","mongolians","chaco" ,"japanese" , "negroid" , "jews","mohammedans", "asiatics" , "tribes" , "europeans", "hottentots", "mexican", "hebrew" , "malays", "islanders", "chinese", "hindoos", "savages" , "germanic", "greeks", "italians", "barbarians", "asia")]],300) %>% names
+sample(some_races, 50)
+
+
+```
+
+
+```{r}
+##this section errors out due to changes in previous
+#race_distances = cosineDist(some_races,some_races) %>% as.dist
+#plot(as.dendrogram(hclust(race_distances)),horiz=F,cex=1,main="Cluster #dendrogram of the fifty words closest to a race vector\nin medical #jurisprudence texts from the MOML")
+```
+
+
+My first racial model is Asian.  My first plot, beginning with the single term "asiatic" produces the following related terms:
+```{r}
+model %>% nearest_to(model[[c("asiatic")]],25) %>% names
+```
+It's encouraging that there are lots of diseases associated with discusssion of the Chinese, but I'm looking for racial terms.  I'll bump it up with a couple of specific population groups that I know were present in the US during this period:
+```{r}
+model %>% nearest_to(model[[c("asiatic" , "chinese", "japanese", "filipino")]],25) %>% names
+```
+I can see this is going to take some picking and choosing.  I plan to run a total of ten iterations, selecting useful words each time. 
+```{r}
+#10
+model %>% nearest_to(model[[c("asiatic" , "chinese", "japanese", "filipino" , "hindoos" , "asia" , "persia" , "islanders" , "sandwich" , "tahiti", "islands" , "consular", "savages" , "tribes" , "disgraces" , "migratory" , "indians" )]],30) %>% names
+```
+```{r}
+races_asian = nearest_to(model,model[[c( "asiatic" , "chinese", "japanese", "filipino" , "hindoos" , "asia" , "persia" , "islanders" , "sandwich" , "tahiti", "islands" , "consular", "savages" , "tribes" , "disgraces" , "migratory" , "indians")]],30)
+```
+
+```{r , echo=FALSE}
+races_asian = nearest_to(model,model[[c( "chinese", "japanese", "asiatic" , "hindoos" , "aboriginial", "persia" , "sandwich" )]],30)
+plot(filter_to_rownames(model,names(races_asian)))
+```
+
+```{r}
+race_asian_distances = cosineDist(races_asian,races_asian) %>% as.dist
+plot(as.dendrogram(hclust(race_asian_distances)),horiz=F,cex=1,main="Cluster dendrogram of the fifty words closest to an Asian race vector\nin medical jurisprudence texts from the MOML")
+```
+
+
+
+Now I'm going to work on African American terminology. My first plot begins with "negro."
+```{r}
+model %>% nearest_to(model[[c("negro" )]],30) %>% names
+```
+I'll run through this 10 times as well:
+
+```{r}
+#10
+model %>% nearest_to(model[[c("negro" , "mulatto", "mulattoes" , "negress" , "creole", "african" , "mulattoes" , "woolly" , "spades" , "albino" , "swarthy" , "curly", "lipped" , "mongolians","mesocephalic" , "negroid" , "brachycephalic" ,"urchin" , "orthognathous"  , "fleecy",  "prognathous" , "complexion")]],30) %>% names
+```
+
+
+```{r}
+races_afram = nearest_to(model,model[[c("negro" , "mulatto", "mulattoes" , "negress" , "creole", "african" , "mulattoes" , "woolly" , "spades" , "albino" , "swarthy" , "curly", "lipped" , "mongolians","mesocephalic" , "negroid" , "brachycephalic" ,"urchin" , "orthognathous"  , "fleecy",  "prognathous" , "complexion" )]],30)
+
+```
+And caucasioon
+```{r}
+model %>% nearest_to(model[[c("mexican")]],30) %>% names
+```
+
+```{r}
+model %>% nearest_to(model[[c("catholic" , "rome" , "priest", "roman", "jews", "mohammed", "epsicopal" , "church" , "priests", "christian", "christians", "jewish")]],20) %>% names
+```
+
+```{r}
+some_diseases = nearest_to(model,model[[c("abortion", "sanitation", "vaccination", "vaccine", "abortion",  "epidemic", "influenza", "filth", "typhoid", "smallpox", "tuberculosis",  "syphilis", "gonorrhea", "gonorrhoea" )]],50)
+plot(filter_to_rownames(model,names(some_diseases)))
+```
+
+```{r}
+#foods = chronam_vectors[rownames(chronam_vectors) %in% #food_words[1:50],]
+
+#food_distances = cosineDist(foods,foods) %>% as.dist
+#plot(as.dendrogram(hclust(food_distances)),horiz=F,cex=1,main="Cluster #dendrogram of the fifty words closest to a food vector\nin newspapers #from Chronicling America")
+
+#foods = chronam_vectors[rownames(chronam_vectors) %in% #food_words[1:50],]
+
+races = model[rownames(model) %in% some_races [1:50], ]
+
+afram_score = races %>% cosineSimilarity(model[[c("negro", "negress")]])
+asian_score = races %>% cosineSimilarity(model[[c("asiatic")]])
+
+plot(afram_score, asian_score, type ='n', main="Top 300 words plotted by their similarity to AA\n(x axis) and Asians (y axis).")
+text(afram_score, asian_score, labels = rownames(races), cex=.7)
+abline(a=0, b=1)
+```
+
+
