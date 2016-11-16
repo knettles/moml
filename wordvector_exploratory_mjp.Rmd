@@ -132,16 +132,41 @@ ggplot(all_races,aes(x=aa_vs_asian,y=white_vs_hispanic,label=word)) + geom_text(
   scale_y_continuous("<----- Hispanic ..............  Caucasian ------>",limits=c(-.21,.2)) +
   scale_x_continuous("<----- Asian ..............  African-American ------>",limits=c(-.30,.15))
 ```
-Next steps:
+Looking over the races vector:
+```{r}
+plot(races, perplexity=50)
+```
+```{r}
+nearest_to(races, races[["negro"]]) - nearest_to(races, races[["asiatic"]])
+```
+"charlevoix" is a term that has come up in previous modeling.  I found a reference for a Jesuit priest, Father Pierre François Xavier de Charlevoix, who is considered the first historian of New France. I also found his observations quoted in a text discussing the negro race.
+
+```{r}
+races %>% nearest_to(races[[c("charlevoix")]],50) %>% names
+```
+What happens if I remove words associated with Charlevoix from words associated with negro?
+```{r}
+races %>% nearest_to(races[["negro"]] - races[["charlevoix"]])
+```
+The results become more oriented toward the language of biological anthopology and possibly eugenics.  If I look for words associated with Francis Galton (who was a primary proponent of eugentics), I get this set of terms.
+```{r}
+races %>% nearest_to(races[[c("galton")]],50) %>% names
+```
+Subtracting both Galton and Charveloix associated terms from the negro vector:
+```{r}
+races %>% nearest_to(races[["negro"]] - races[["charlevoix"]] - races[["galton"]])
+```
+This is a very rough cut, but it does appear nearly all reference in the texts to the word "negro" is associated with discussion of eugenics or the observatios of an 18th century missionary.
+
+
+
+Further research:
 1) refine all_races to include terms from all of the subsets
 2) continue to improve the racial subgroups
-3) if time allows, create subsets along religious and nationality lines
+3) create subsets along religious and nationality lines
 4) create gender sets
-4) create public health sets (disease, disability, abortion, quarantine, vaccination) 
-5) compare public health sets to race/gender/religion
+5) create chronological sets (pre- and post- Civil War and early 20th century are some obvious breaks)
+5) create public health sets (disease, disability, abortion, quarantine, vaccination) 
+6) compare public health sets to race/gender/religion
 
 The intent is to look for evidence of language of race/gender/religion associated with public health concerns.
-```{r}
-
-```
-
